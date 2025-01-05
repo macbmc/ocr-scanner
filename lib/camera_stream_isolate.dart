@@ -125,21 +125,28 @@ class _CameraStreamIsolateWidgetState extends State<CameraStreamIsolateWidget> {
     final widgetHeight = params["widgetHeight"];
     final widgetWidth = params["widgetWidth"];
     final rootIsolateToken = params["rootIsolateToken"];
-
+    img.Image? capturedImage = null;
     // Perform image processing in an isolate
-    final capturedImage = await processCameraImage(cameraImage);
-    final croppedImage = await _cropAndRotateImage(
-        capturedImage, overlayRect, widgetWidth, widgetHeight);
-    if (croppedImage == null) {
-      print("CROPPED IS NULLL");
-      return {};
+    if (Platform.isAndroid) {
+      capturedImage = await processCameraImage(cameraImage);
+    } else if (Platform.isIOS) {
+      capturedImage = await processIOSImage(cameraImage);
     }
-    final xfileImage =
-        await convertImageToXFile(croppedImage, "ocr-test", rootIsolateToken);
+    if (capturedImage != null) {
+      final croppedImage = await _cropAndRotateImage(
+          capturedImage, overlayRect, widgetWidth, widgetHeight);
+      if (croppedImage == null) {
+        print("CROPPED IS NULLL");
+        return {};
+      }
+      final xfileImage =
+          await convertImageToXFile(croppedImage, "ocr-test", rootIsolateToken);
 
-    return {
-      "xFileImage": xfileImage,
-    };
+      return {
+        "xFileImage": xfileImage,
+      };
+    }
+    return {};
   }
 
   static Future<XFile> convertImageToXFile(img.Image image, String fileName,
@@ -198,6 +205,53 @@ class _CameraStreamIsolateWidgetState extends State<CameraStreamIsolateWidget> {
         height: height,
         bytes: rgbBuffer.buffer.asByteData().buffer);
     img.Image rotatedImage = img.copyRotate(decodedImage, angle: -90);
+
+    return rotatedImage;
+  }
+
+  static Future<img.Image> processIOSImage(CameraImage image) async {
+    final int width = image.width;
+    final int height = image.height;
+
+    // Assuming NV12 format for iOS (Y + interleaved UV planes)
+    final Uint8List yPlane = image.planes[0].bytes;
+    final Uint8List uvPlane = image.planes[1].bytes;
+
+    // Create an empty RGB buffer
+    final Uint8List rgbBuffer = Uint8List(width * height * 3);
+
+    for (int i = 0; i < height; i++) {
+      for (int j = 0; j < width; j++) {
+        // Get the Y value
+        final int yIndex = i * width + j;
+        final int y = yPlane[yIndex];
+
+        // Get the UV values (interleaved)
+        final int uvIndex = ((i ~/ 2) * width + (j ~/ 2) * 2);
+        final int u = uvPlane[uvIndex] - 128;
+        final int v = uvPlane[uvIndex + 1] - 128;
+
+        // Convert YUV to RGB
+        final int r = (y + 1.402 * v).clamp(0, 255).toInt();
+        final int g = (y - 0.344136 * u - 0.714136 * v).clamp(0, 255).toInt();
+        final int b = (y + 1.772 * u).clamp(0, 255).toInt();
+
+        final int rgbIndex = (yIndex) * 3;
+        rgbBuffer[rgbIndex] = r;
+        rgbBuffer[rgbIndex + 1] = g;
+        rgbBuffer[rgbIndex + 2] = b;
+      }
+    }
+
+    // Create the image from the RGB buffer
+    final img.Image decodedImage = img.Image.fromBytes(
+      width: width,
+      height: height,
+      bytes: rgbBuffer.buffer.asByteData().buffer,
+    );
+
+    // Rotate the image (e.g., 90 degrees clockwise if needed)
+    final img.Image rotatedImage = img.copyRotate(decodedImage, angle: -90);
 
     return rotatedImage;
   }
@@ -296,7 +350,10 @@ class _CameraStreamIsolateWidgetState extends State<CameraStreamIsolateWidget> {
               ),
               Align(
                 alignment: Alignment.bottomCenter,
-                child: Text(resultText),
+                child: Text(
+                  resultText,
+                  style: TextStyle(fontSize: 20),
+                ),
               )
             ],
           );

@@ -282,7 +282,7 @@ class _CameraCaptureWidgetState extends State<CameraCaptureWidget> {
                 alignment: Alignment.bottomLeft,
                 child: Text(
                   resultText,
-                  style: TextStyle(fontSize: 10),
+                  style: TextStyle(fontSize: 20),
                 ),
               )
             ],
