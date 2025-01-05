@@ -2,10 +2,10 @@
 
 A flutter application for demonstrating OCR.
 used packages:
-camera
-google_ml_text_recognition
-image
-flutter_scalable_ocr
+camera,
+google_ml_text_recognition,
+image,
+flutter_scalable_ocr,
 ## Getting Started
 
 This project is a starting point for a Flutter application.
